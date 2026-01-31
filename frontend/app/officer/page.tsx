@@ -1,27 +1,57 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+interface OfficerData {
+    id: number;
+    email: string;
+    name: string;
+    department_code: string;
+    department_name: string;
+}
+
 export default function OfficerDashboard() {
+    const router = useRouter();
+    const [officer, setOfficer] = useState<OfficerData | null>(null);
     const [complaints, setComplaints] = useState<any[]>([]);
     const [selectedComplaint, setSelectedComplaint] = useState<any>(null);
     const [suggestions, setSuggestions] = useState<any>(null);
     const [loading, setLoading] = useState(false);
-
-    // Hardcoded officer ID for demo
-    const officerId = 3;
+    const [resolutionText, setResolutionText] = useState('');
+    const [showResolutionModal, setShowResolutionModal] = useState(false);
 
     useEffect(() => {
-        fetchAssignedComplaints();
-    }, []);
+        // Check authentication
+        const token = localStorage.getItem('officer_token');
+        const officerData = localStorage.getItem('officer_data');
 
-    const fetchAssignedComplaints = async () => {
+        if (!token || !officerData) {
+            router.push('/officer/login');
+            return;
+        }
+
+        const parsedOfficer = JSON.parse(officerData);
+        setOfficer(parsedOfficer);
+        fetchDepartmentComplaints(parsedOfficer.department_code);
+    }, [router]);
+
+    const fetchDepartmentComplaints = async (departmentCode: string) => {
         try {
-            const response = await axios.get(`${API_URL}/api/complaints?officer_id=${officerId}&status=assigned`);
-            setComplaints(response.data.complaints || []);
+            // Fetch complaints filtered by department
+            const response = await axios.get(`${API_URL}/api/complaints`);
+
+            // Filter by department - we'll need to match department_code from officer_auth to department in complaints
+            const allComplaints = response.data.complaints || [];
+            const filtered = allComplaints.filter((c: any) =>
+                c.department_code === departmentCode &&
+                (c.status === 'assigned' || c.status === 'in_progress' || c.status === 'pending')
+            );
+
+            setComplaints(filtered);
         } catch (error) {
             console.error('Failed to fetch complaints:', error);
         }
@@ -46,39 +76,98 @@ export default function OfficerDashboard() {
     };
 
     const handleResolve = async () => {
-        if (!selectedComplaint) return;
-
-        const resolutionText = prompt('Enter resolution details:');
-        if (!resolutionText) return;
+        if (!selectedComplaint || !resolutionText.trim()) {
+            alert('Please enter resolution details');
+            return;
+        }
 
         try {
-            await axios.post(`${API_URL}/api/complaints/${selectedComplaint.complaint_id}/resolve`, {
-                resolution_text: resolutionText,
-                officer_id: officerId,
-            });
+            const token = localStorage.getItem('officer_token');
+            await axios.post(
+                `${API_URL}/api/complaints/${selectedComplaint.complaint_id}/resolve`,
+                {
+                    resolution_text: resolutionText,
+                    officer_id: officer?.id,
+                },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                }
+            );
 
             alert('Complaint resolved successfully!');
             setSelectedComplaint(null);
             setSuggestions(null);
-            fetchAssignedComplaints();
+            setResolutionText('');
+            setShowResolutionModal(false);
+            fetchDepartmentComplaints(officer!.department_code);
         } catch (error: any) {
             alert('Failed to resolve: ' + (error.response?.data?.error || error.message));
         }
     };
 
+    const handleLogout = () => {
+        localStorage.removeItem('officer_token');
+        localStorage.removeItem('officer_data');
+        router.push('/officer/login');
+    };
+
+    if (!officer) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-pulse text-2xl">Loading...</div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen p-8">
             <div className="max-w-7xl mx-auto">
-                <div className="mb-8">
-                    <h1 className="text-4xl font-bold mb-2">Officer Dashboard</h1>
-                    <p className="text-white/60">AI-powered resolution intelligence at your fingertips</p>
+                {/* Header with Officer Profile */}
+                <div className="glass-card p-6 mb-6">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-2xl font-bold">
+                                {officer.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-bold">{officer.name}</h1>
+                                <p className="text-white/60 text-sm">{officer.department_name} ({officer.department_code})</p>
+                                <p className="text-white/40 text-xs">{officer.email}</p>
+                            </div>
+                        </div>
+                        <button onClick={handleLogout} className="btn-primary bg-red-500/20 border-red-500 hover:bg-red-500/30">
+                            🚪 Logout
+                        </button>
+                    </div>
+                </div>
+
+                {/* Stats */}
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                    <div className="glass-card p-4 text-center">
+                        <p className="text-3xl font-bold text-primary-400">{complaints.length}</p>
+                        <p className="text-white/60 text-sm">Department Complaints</p>
+                    </div>
+                    <div className="glass-card p-4 text-center">
+                        <p className="text-3xl font-bold text-green-400">
+                            {complaints.filter(c => c.status === 'assigned').length}
+                        </p>
+                        <p className="text-white/60 text-sm">Assigned to You</p>
+                    </div>
+                    <div className="glass-card p-4 text-center">
+                        <p className="text-3xl font-bold text-yellow-400">
+                            {complaints.filter(c => c.status === 'pending').length}
+                        </p>
+                        <p className="text-white/60 text-sm">Pending Assignment</p>
+                    </div>
                 </div>
 
                 <div className="grid lg:grid-cols-3 gap-8">
                     {/* Complaints List */}
                     <div className="lg:col-span-1">
                         <div className="glass-card p-6">
-                            <h2 className="text-xl font-bold mb-4">Assigned Complaints ({complaints.length})</h2>
+                            <h2 className="text-xl font-bold mb-4">Department Complaints ({complaints.length})</h2>
                             <div className="space-y-3 max-h-[600px] overflow-y-auto">
                                 {complaints.map((complaint) => (
                                     <div
@@ -89,7 +178,15 @@ export default function OfficerDashboard() {
                                                 : 'bg-white/5 border-white/10 hover:bg-white/10'
                                             }`}
                                     >
-                                        <p className="font-semibold text-sm mb-1">{complaint.complaint_id}</p>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <p className="font-semibold text-sm">{complaint.complaint_id}</p>
+                                            <span className={`text-xs px-2 py-1 rounded ${complaint.status === 'assigned' ? 'bg-blue-500/20 text-blue-400' :
+                                                    complaint.status === 'in_progress' ? 'bg-purple-500/20 text-purple-400' :
+                                                        'bg-yellow-500/20 text-yellow-400'
+                                                }`}>
+                                                {complaint.status}
+                                            </span>
+                                        </div>
                                         <p className="text-white/80 text-sm line-clamp-2">{complaint.title}</p>
                                         <div className="flex items-center gap-2 mt-2 text-xs">
                                             <span className="text-white/40">{complaint.category_name}</span>
@@ -100,7 +197,7 @@ export default function OfficerDashboard() {
                                 {complaints.length === 0 && (
                                     <div className="text-center py-12 text-white/40">
                                         <div className="text-4xl mb-2">🎉</div>
-                                        <p>No pending complaints!</p>
+                                        <p>No pending complaints in your department!</p>
                                     </div>
                                 )}
                             </div>
@@ -125,12 +222,15 @@ export default function OfficerDashboard() {
                                             <h2 className="text-2xl font-bold mb-2">{selectedComplaint.title}</h2>
                                             <p className="text-white/60 text-sm">ID: {selectedComplaint.complaint_id}</p>
                                         </div>
-                                        <button onClick={handleResolve} className="btn-primary">
+                                        <button
+                                            onClick={() => setShowResolutionModal(true)}
+                                            className="btn-primary"
+                                        >
                                             ✓ Mark Resolved
                                         </button>
                                     </div>
 
-                                    <p className="text-white/80  mb-4">{selectedComplaint.description}</p>
+                                    <p className="text-white/80 mb-4">{selectedComplaint.description}</p>
 
                                     <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/10">
                                         <div>
@@ -148,7 +248,35 @@ export default function OfficerDashboard() {
                                     </div>
                                 </div>
 
-                                {/* AI-POWERED SUGGESTIONS (THE KILLER FEATURE) */}
+                                {/* Resolution Modal */}
+                                {showResolutionModal && (
+                                    <div className="glass-card p-6 border-2 border-primary-500">
+                                        <h3 className="text-xl font-bold mb-4">Enter Resolution Details</h3>
+                                        <textarea
+                                            className="input-field mb-4"
+                                            rows={5}
+                                            placeholder="Describe the actions taken to resolve this complaint..."
+                                            value={resolutionText}
+                                            onChange={(e) => setResolutionText(e.target.value)}
+                                        />
+                                        <div className="flex gap-3">
+                                            <button onClick={handleResolve} className="btn-primary flex-1">
+                                                Submit Resolution
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setShowResolutionModal(false);
+                                                    setResolutionText('');
+                                                }}
+                                                className="btn-primary bg-gray-500/20 border-gray-500 flex-1"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* AI-POWERED SUGGESTIONS */}
                                 {loading ? (
                                     <div className="glass-card p-12 text-center">
                                         <div className="animate-pulse-slow text-4xl mb-4">🤖</div>

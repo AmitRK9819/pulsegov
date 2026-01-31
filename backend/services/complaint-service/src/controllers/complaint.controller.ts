@@ -139,6 +139,7 @@ export async function getComplaints(req: Request, res: Response) {
       SELECT c.*, 
              cat.name as category_name,
              dept.name as department_name,
+             dept.code as department_code,
              u.name as assigned_officer_name
       FROM complaints c
       LEFT JOIN categories cat ON c.category_id = cat.id

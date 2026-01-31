@@ -56,6 +56,21 @@ services:
       - pulsegov-network
 
   # Backend Services
+  auth-service:
+    build: ./backend/services/auth-service
+    container_name: pulsegov-auth-service
+    environment:
+      DATABASE_URL: postgresql://pulsegov:pulsegov123@postgres:5432/pulsegov
+      JWT_SECRET: pulsegov_secret_key_2026
+      JWT_EXPIRY: 7d
+      PORT: 3005
+    ports:
+      - "3005:3005"
+    depends_on:
+      - postgres
+    networks:
+      - pulsegov-network
+
   complaint-service:
     build: ./backend/services/complaint-service
     container_name: pulsegov-complaint-service
@@ -196,6 +211,7 @@ volumes:
   redis_data:
   neo4j_data:
   rabbitmq_data:
+
 
 networks:
   pulsegov-network:
