@@ -175,7 +175,7 @@ class ResolutionIntelligence {
                r.resolution_text as resolution_text,
                r.time_to_resolve_hours as time_to_resolve_hours,
                r.success_rating as success_rating,
-               sim. score as similarity_score
+               sim.score as similarity_score
         ORDER BY sim.score DESC, r.success_rating DESC
         LIMIT 5
         `,
