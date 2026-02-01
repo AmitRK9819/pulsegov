@@ -309,7 +309,7 @@ async function startConsumer() {
         await rabbitChannel.assertQueue('complaint.resolved', { durable: true });
 
         // Add routed complaints to graph
-        rabbitChannel.consume('complaint.routed', async (msg) => {
+        rabbitChannel.consume('complaint.routed', async (msg: amqp.ConsumeMessage | null) => {
             if (!msg) return;
 
             try {
@@ -336,7 +336,7 @@ async function startConsumer() {
         });
 
         // Add resolutions to graph
-        rabbitChannel.consume('complaint.resolved', async (msg) => {
+        rabbitChannel.consume('complaint.resolved', async (msg: amqp.ConsumeMessage | null) => {
             if (!msg) return;
 
             try {
