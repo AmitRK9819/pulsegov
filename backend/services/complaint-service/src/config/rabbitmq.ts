@@ -1,6 +1,6 @@
 import amqp, { Connection, Channel } from 'amqplib';
 
-let connection: Connection;
+let connection: any;
 let channel: Channel;
 
 export async function initializeRabbitMQ() {

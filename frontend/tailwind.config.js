@@ -7,18 +7,21 @@ module.exports = {
     ],
     theme: {
         extend: {
+            fontFamily: {
+                sans: ['Noto Sans', 'sans-serif'],
+            },
             colors: {
                 primary: {
-                    50: '#f0f9ff',
-                    100: '#e0f2fe',
-                    200: '#bae6fd',
-                    300: '#7dd3fc',
-                    400: '#38bdf8',
-                    500: '#0ea5e9',
-                    600: '#0284c7',
-                    700: '#0369a1',
-                    800: '#075985',
-                    900: '#0c4a6e',
+                    50: '#eff6ff',
+                    100: '#dbeafe',
+                    200: '#bfdbfe',
+                    300: '#93c5fd',
+                    400: '#60a5fa',
+                    500: '#3b82f6',
+                    600: '#2563eb',
+                    700: '#1d4ed8',
+                    800: '#1e40af',
+                    900: '#1e3a8a',
                 },
                 success: {
                     500: '#10b981',
@@ -31,6 +34,13 @@ module.exports = {
                 danger: {
                     500: '#ef4444',
                     600: '#dc2626',
+                },
+                saffron: '#FF9933',
+                govGreen: '#128807',
+                govBlue: {
+                    DEFAULT: '#1e40af',
+                    light: '#3b82f6',
+                    dark: '#1e3a8a',
                 },
             },
             animation: {

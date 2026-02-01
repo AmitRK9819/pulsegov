@@ -18,6 +18,17 @@ export interface LoginOfficerDto {
     password: string;
 }
 
+export interface RegisterCitizenDto {
+    username: string;
+    email: string;
+    password: string;
+}
+
+export interface LoginCitizenDto {
+    username: string;
+    password: string;
+}
+
 export class AuthService {
     async registerOfficer(dto: RegisterOfficerDto) {
         // Check if email already exists
@@ -117,5 +128,101 @@ export class AuthService {
             'SELECT id, name, code, description FROM departments ORDER BY name'
         );
         return result.rows;
+    }
+
+    // ========== CITIZEN AUTHENTICATION METHODS ==========
+
+    async registerCitizen(dto: RegisterCitizenDto) {
+        // Check if username already exists
+        const existingUsername = await pool.query(
+            'SELECT id FROM citizen_auth WHERE username = $1',
+            [dto.username]
+        );
+
+        if (existingUsername.rows.length > 0) {
+            throw new Error('Username already taken');
+        }
+
+        // Check if email already exists
+        const existingEmail = await pool.query(
+            'SELECT id FROM citizen_auth WHERE email = $1',
+            [dto.email]
+        );
+
+        if (existingEmail.rows.length > 0) {
+            throw new Error('Email already registered');
+        }
+
+        // Hash password
+        const passwordHash = await hashPassword(dto.password);
+
+        // Insert citizen
+        const result = await pool.query(
+            `INSERT INTO citizen_auth (username, email, password_hash)
+             VALUES ($1, $2, $3)
+             RETURNING id, username, email, created_at`,
+            [dto.username, dto.email, passwordHash]
+        );
+
+        return result.rows[0];
+    }
+
+    async loginCitizen(dto: LoginCitizenDto) {
+        // Find citizen by username
+        const result = await pool.query(
+            'SELECT * FROM citizen_auth WHERE username = $1',
+            [dto.username]
+        );
+
+        if (result.rows.length === 0) {
+            throw new Error('Invalid credentials');
+        }
+
+        const citizen = result.rows[0];
+
+        // Verify password
+        const isPasswordValid = await comparePassword(dto.password, citizen.password_hash);
+
+        if (!isPasswordValid) {
+            throw new Error('Invalid credentials');
+        }
+
+        // Generate JWT token
+        const token = generateToken({
+            id: citizen.id,
+            username: citizen.username,
+            email: citizen.email,
+            type: 'citizen',
+        });
+
+        // Return citizen data without password
+        const { password_hash, ...citizenData } = citizen;
+
+        return {
+            citizen: citizenData,
+            token,
+        };
+    }
+
+    async getCitizenProfile(citizenId: number) {
+        const result = await pool.query(
+            'SELECT id, username, email, created_at FROM citizen_auth WHERE id = $1',
+            [citizenId]
+        );
+
+        if (result.rows.length === 0) {
+            throw new Error('Citizen not found');
+        }
+
+        return result.rows[0];
+    }
+
+    async checkUsernameAvailability(username: string) {
+        const result = await pool.query(
+            'SELECT id FROM citizen_auth WHERE username = $1',
+            [username]
+        );
+
+        return result.rows.length === 0;
     }
 }

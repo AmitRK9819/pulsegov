@@ -8,7 +8,7 @@ import { emitComplaintUpdate, emitUserNotification } from '../websocket/socket';
 // Create new complaint
 export async function createComplaint(req: Request, res: Response) {
     const db = getDb();
-    const { title, description, location, citizen_id } = req.body;
+    const { title, description, location, citizen_id, department_code, category_id } = req.body; // Added department_code
 
     try {
         // Validate input
@@ -21,6 +21,15 @@ export async function createComplaint(req: Request, res: Response) {
         // Generate unique complaint ID
         const complaintId = `CMP-${Date.now()}-${uuidv4().slice(0, 8).toUpperCase()}`;
 
+        // Lookup Department ID if code provided
+        let departmentId = null;
+        if (department_code) {
+            const deptResult = await db.query('SELECT id FROM departments WHERE code = $1', [department_code]);
+            if (deptResult.rows.length > 0) {
+                departmentId = deptResult.rows[0].id;
+            }
+        }
+
         // Handle file attachments
         const attachments = req.files ? (req.files as Express.Multer.File[]).map(file => ({
             filename: file.originalname,
@@ -32,8 +41,8 @@ export async function createComplaint(req: Request, res: Response) {
         // Insert complaint into database
         const result = await db.query(
             `INSERT INTO complaints 
-       (complaint_id, citizen_id, title, description, location, attachments, status, created_at) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP) 
+       (complaint_id, citizen_id, title, description, location, attachments, status, department_id, category_id, created_at) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP) 
        RETURNING *`,
             [
                 complaintId,
@@ -42,7 +51,9 @@ export async function createComplaint(req: Request, res: Response) {
                 description,
                 location ? JSON.stringify(location) : null,
                 JSON.stringify(attachments),
-                'pending'
+                'pending',
+                departmentId, // $8
+                category_id || null // $9
             ]
         );
 
@@ -456,5 +467,65 @@ export async function uploadAttachment(req: Request, res: Response) {
     } catch (error: any) {
         console.error('Error uploading attachment:', error);
         res.status(500).json({ error: 'Failed to upload attachment', message: error.message });
+    }
+}
+
+// Get dashboard stats
+export async function getComplaintStats(req: Request, res: Response) {
+    const db = getDb();
+    try {
+        // Basic counts
+        const countsResult = await db.query(`
+            SELECT 
+                COUNT(*) as total,
+                COUNT(CASE WHEN status = 'resolved' THEN 1 END) as resolved,
+                COUNT(CASE WHEN status IN ('pending', 'assigned', 'in_progress') THEN 1 END) as pending,
+                COUNT(CASE WHEN status = 'sla_breached' THEN 1 END) as sla_breached
+            FROM complaints
+        `);
+
+        // Avg resolution time
+        const avgTimeResult = await db.query(`
+            SELECT AVG(time_to_resolve_hours) as avg_time FROM resolutions
+        `);
+
+        // Category distribution
+        const catResult = await db.query(`
+            SELECT c.name, COUNT(*) as value
+            FROM complaints cmp
+            JOIN categories c ON cmp.category_id = c.id
+            GROUP BY c.name
+        `);
+
+        // Department performance
+        const deptResult = await db.query(`
+             SELECT d.name as dept, 
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN cmp.status = 'resolved' THEN 1 END) as resolved_count
+             FROM complaints cmp
+             JOIN departments d ON cmp.department_id = d.id
+             GROUP BY d.name
+        `);
+
+        res.json({
+            success: true,
+            stats: {
+                total: parseInt(countsResult.rows[0].total),
+                resolved: parseInt(countsResult.rows[0].resolved),
+                pending: parseInt(countsResult.rows[0].pending),
+                sla_breached: parseInt(countsResult.rows[0].sla_breached),
+                avg_resolution_time: parseFloat(avgTimeResult.rows[0].avg_time || 0).toFixed(1)
+            },
+            categoryData: catResult.rows,
+            departmentData: deptResult.rows.map((d: any) => ({
+                dept: d.dept,
+                resolved: d.total > 0 ? Math.round((d.resolved_count / d.total) * 100) : 0,
+                avg_time: 24 // Placeholder
+            }))
+        });
+
+    } catch (error: any) {
+        console.error('Error fetching stats:', error);
+        res.status(500).json({ error: 'Failed to fetch stats', message: error.message });
     }
 }

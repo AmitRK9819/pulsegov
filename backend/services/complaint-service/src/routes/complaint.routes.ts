@@ -7,7 +7,8 @@ import {
     updateComplaintStatus,
     resolveComplaint,
     getComplaintHistory,
-    uploadAttachment
+    uploadAttachment,
+    getComplaintStats
 } from '../controllers/complaint.controller';
 
 const router = Router();
@@ -28,6 +29,7 @@ const upload = multer({
 
 // Routes
 router.post('/', upload.array('attachments', 5), createComplaint);
+router.get('/stats', getComplaintStats);
 router.get('/', getComplaints);
 router.get('/:id', getComplaint);
 router.patch('/:id/status', updateComplaintStatus);

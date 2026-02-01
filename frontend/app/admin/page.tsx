@@ -19,40 +19,29 @@ export default function AdminDashboard() {
         fetchStats();
     }, []);
 
-    const fetchStats = async () => {
-        // Simulated data for demo
-        setStats({
-            total: 247,
-            resolved: 189,
-            pending: 42,
-            sla_breached: 16,
-            avg_resolution_time: 28.5,
-        });
-    };
-
-    const categoryData = [
-        { name: 'Streetlight', value: 45, color: '#3b82f6' },
-        { name: 'Roads', value: 38, color: '#10b981' },
-        { name: 'Water', value: 32, color: '#f59e0b' },
-        { name: 'Garbage', value: 28, color: '#ef4444' },
-        { name: 'Others', value: 20, color: '#8b5cf6' },
-    ];
-
-    const trendData = [
+    const [categoryData, setCategoryData] = useState<any[]>([]);
+    const [departmentPerformance, setDepartmentPerformance] = useState<any[]>([]);
+    const [trendData, setTrendData] = useState<any[]>([
         { month: 'Jan', complaints: 45, resolved: 42 },
         { month: 'Feb', complaints: 52, resolved: 48 },
         { month: 'Mar', complaints: 61, resolved: 58 },
         { month: 'Apr', complaints: 58, resolved: 55 },
         { month: 'May', complaints: 67, resolved: 63 },
         { month: 'Jun', complaints: 74, resolved: 71 },
-    ];
+    ]);
 
-    const departmentPerformance = [
-        { dept: 'Electricity', resolved: 95, avg_time: 24 },
-        { dept: 'Water', resolved: 88, avg_time: 32 },
-        { dept: 'Roads', resolved: 82, avg_time: 48 },
-        { dept: 'Garbage', resolved: 91, avg_time: 18 },
-    ];
+    const fetchStats = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/complaints/stats`);
+            if (response.data.success) {
+                setStats(response.data.stats);
+                setCategoryData(response.data.categoryData);
+                setDepartmentPerformance(response.data.departmentData);
+            }
+        } catch (error) {
+            console.error('Failed to fetch stats:', error);
+        }
+    };
 
     return (
         <div className="min-h-screen p-8">

@@ -13,6 +13,17 @@ CREATE TABLE officer_auth (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Citizen Authentication Table (Separate login credentials for citizens)
+CREATE TABLE citizen_auth (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(255) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    is_verified BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Users table (Citizens, Officers, Admins)
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
@@ -88,6 +99,15 @@ CREATE TABLE complaints (
     citizen_rating INTEGER CHECK (citizen_rating >= 1 AND citizen_rating <= 5),
     citizen_feedback TEXT,
     duplicate_of INTEGER REFERENCES complaints(id),
+    -- Additional citizen information from complaint form
+    citizen_name VARCHAR(255),
+    citizen_aadhaar VARCHAR(14),
+    citizen_mobile VARCHAR(15),
+    citizen_email VARCHAR(255),
+    citizen_city VARCHAR(100),
+    citizen_district VARCHAR(100),
+    citizen_state VARCHAR(100),
+    citizen_pincode VARCHAR(10),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -165,6 +185,8 @@ CREATE TABLE blockchain_ledger (
 );
 
 -- Create indexes for performance
+CREATE INDEX idx_citizen_auth_username ON citizen_auth(username);
+CREATE INDEX idx_citizen_auth_email ON citizen_auth(email);
 CREATE INDEX idx_officer_auth_email ON officer_auth(email);
 CREATE INDEX idx_officer_auth_dept ON officer_auth(department_code);
 CREATE INDEX idx_complaints_citizen ON complaints(citizen_id);
@@ -187,6 +209,9 @@ END;
 $$ language 'plpgsql';
 
 -- Create triggers
+CREATE TRIGGER update_citizen_auth_updated_at BEFORE UPDATE ON citizen_auth
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 CREATE TRIGGER update_officer_auth_updated_at BEFORE UPDATE ON officer_auth
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
